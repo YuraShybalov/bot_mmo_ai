@@ -1,0 +1,42 @@
+{
+  "window_name": "ComebackPW",
+  "attack_buttons": [
+    {
+      "number": 1,
+      "enabled": true,
+      "timer": "1.0"
+    },
+    {
+      "number": 2,
+      "enabled": false,
+      "timer": "1.0"
+    },
+    {
+      "number": 3,
+      "enabled": false,
+      "timer": "1.0"
+    },
+    {
+      "number": 4,
+      "enabled": false,
+      "timer": "1.0"
+    },
+    {
+      "number": 5,
+      "enabled": false,
+      "timer": "1.0"
+    }
+  ],
+  "healing": {
+    "hp_threshold": 50,
+    "key": "F1"
+  },
+  "mana_restoration": {
+    "mp_threshold": 30,
+    "key": "F2"
+  },
+  "pet_healing": {
+    "hp_threshold": 40,
+    "key": "F3"
+  }
+}
