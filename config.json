@@ -8,7 +8,7 @@
     },
     {
       "number": 2,
-      "enabled": false,
+      "enabled": true,
       "timer": "1.0"
     },
     {
@@ -38,5 +38,24 @@
   "pet_healing": {
     "hp_threshold": 40,
     "key": "F3"
+  },
+  "auto_farm": false,
+  "resource_gather": false,
+  "pet_mode": false,
+  "pause_on_bot": true,
+  "resource_key": "F4",
+  "yolo": {
+    "enabled": true,
+    "model_path": "yolov8n.pt",
+    "confidence": 0.5,
+    "target_classes": "person",
+    "resource_classes": "resource,ore,herb,tree",
+    "bot_classes": "player,bot"
+  },
+  "cv_analysis": {
+    "enabled": true,
+    "hp_roi": "0.105,0.030,0.165,0.022",
+    "mp_roi": "0.105,0.052,0.165,0.022",
+    "pet_hp_roi": ""
   }
 }

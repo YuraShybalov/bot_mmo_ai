@@ -1,0 +1,7 @@
+path: datasets/hud_bars
+train: images/train
+val: images/train
+
+names:
+  0: hp_bar
+  1: mp_bar

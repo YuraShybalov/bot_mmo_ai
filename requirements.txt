@@ -1,0 +1,5 @@
+numpy
+Pillow
+pyautogui
+pywin32
+ultralytics
