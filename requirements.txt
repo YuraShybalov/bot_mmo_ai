@@ -1,5 +1,6 @@
 numpy
 Pillow
+pytesseract
 pyautogui
 pywin32
 ultralytics

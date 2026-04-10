@@ -28,7 +28,18 @@ class BotLoop:
         self.last_detection_labels = []
         self.last_detection_boxes = []
         self.last_categories = {"attack": [], "resources": [], "bots": []}
-        self.last_resource_state = {"hp_percent": None, "mp_percent": None, "pet_hp_percent": None}
+        self.last_resource_state = {
+            "hp_percent": None,
+            "mp_percent": None,
+            "pet_hp_percent": None,
+            "hp_text": None,
+            "mp_text": None,
+            "pet_hp_text": None,
+            "hp_ok": False,
+            "mp_ok": False,
+            "pet_hp_ok": False,
+            "error": None,
+        }
         self.last_error = None
         self.last_frame = None
         self.preview_lock = threading.Lock()
@@ -127,7 +138,18 @@ class BotLoop:
         self.last_detection_labels = []
         self.last_detection_boxes = []
         self.last_categories = {"attack": [], "resources": [], "bots": []}
-        self.last_resource_state = {"hp_percent": None, "mp_percent": None, "pet_hp_percent": None}
+        self.last_resource_state = {
+            "hp_percent": None,
+            "mp_percent": None,
+            "pet_hp_percent": None,
+            "hp_text": None,
+            "mp_text": None,
+            "pet_hp_text": None,
+            "hp_ok": False,
+            "mp_ok": False,
+            "pet_hp_ok": False,
+            "error": None,
+        }
         with self.preview_lock:
             self.last_frame = None
 
@@ -171,6 +193,10 @@ class BotLoop:
             source_x = client_left - window_left
             source_y = client_top - window_top
 
+            if width <= 1 or height <= 1:
+                self.last_error = "invalid client area size"
+                return None
+
             bitmap = win32ui.CreateBitmap()
             bitmap.CreateCompatibleBitmap(mfc_dc, width, height)
             save_dc.SelectObject(bitmap)
@@ -178,6 +204,12 @@ class BotLoop:
 
             bitmap_info = bitmap.GetInfo()
             bitmap_bytes = bitmap.GetBitmapBits(True)
+            expected_size = bitmap_info["bmHeight"] * bitmap_info["bmWidth"] * 4
+            if len(bitmap_bytes) != expected_size:
+                self.last_error = (
+                    f"unexpected bitmap size: got {len(bitmap_bytes)} bytes, expected {expected_size}"
+                )
+                return None
             frame = np.frombuffer(bitmap_bytes, dtype=np.uint8)
             frame = frame.reshape((bitmap_info["bmHeight"], bitmap_info["bmWidth"], 4))
             frame = np.ascontiguousarray(frame[:, :, :3])
@@ -254,7 +286,18 @@ class BotLoop:
         if self.cv_settings["enabled"]:
             self.handle_support_actions(frame, allow_actions=self.actions_enabled)
         else:
-            self.last_resource_state = {"hp_percent": None, "mp_percent": None, "pet_hp_percent": None}
+            self.last_resource_state = {
+                "hp_percent": None,
+                "mp_percent": None,
+                "pet_hp_percent": None,
+                "hp_text": None,
+                "mp_text": None,
+                "pet_hp_text": None,
+                "hp_ok": False,
+                "mp_ok": False,
+                "pet_hp_ok": False,
+                "error": None,
+            }
 
         detections = self.detect_targets(frame)
         self.update_preview_state(frame)
@@ -332,6 +375,13 @@ class BotLoop:
             "hp_percent": resource_state.hp_percent,
             "mp_percent": resource_state.mp_percent,
             "pet_hp_percent": resource_state.pet_hp_percent,
+            "hp_text": resource_state.hp_text,
+            "mp_text": resource_state.mp_text,
+            "pet_hp_text": resource_state.pet_hp_text,
+            "hp_ok": resource_state.hp_ok,
+            "mp_ok": resource_state.mp_ok,
+            "pet_hp_ok": resource_state.pet_hp_ok,
+            "error": resource_state.error,
         }
 
         if not allow_actions:
@@ -370,6 +420,8 @@ class BotLoop:
             "categories": {key: list(value) for key, value in self.last_categories.items()},
             "resources": dict(self.last_resource_state),
             "cv_settings": dict(self.cv_settings),
+            "hud_box": self.frame_analyzer.hud_box,
+            "text_rois": self.frame_analyzer.get_debug_rois(),
             "actions_enabled": self.actions_enabled,
         }
 

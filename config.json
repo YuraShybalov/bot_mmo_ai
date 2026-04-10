@@ -3,12 +3,12 @@
   "attack_buttons": [
     {
       "number": 1,
-      "enabled": true,
+      "enabled": false,
       "timer": "1.0"
     },
     {
       "number": 2,
-      "enabled": true,
+      "enabled": false,
       "timer": "1.0"
     },
     {
@@ -54,8 +54,8 @@
   },
   "cv_analysis": {
     "enabled": true,
-    "hp_roi": "0.105,0.030,0.165,0.022",
-    "mp_roi": "0.105,0.052,0.165,0.022",
+    "hp_roi": "55,409,74,27",
+    "mp_roi": "167,405,75,35",
     "pet_hp_roi": ""
   }
 }

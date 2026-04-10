@@ -10,15 +10,16 @@ from bot.bot_loop import BotLoop
 
 
 PLACEHOLDER_WINDOW_NAME = "Введіть назву вікна клієнта..."
-PREVIEW_MAX_SIZE = (860, 360)
+PREVIEW_MAX_SIZE = (1100, 520)
+POP_OUT_PREVIEW_MAX_SIZE = (1600, 1000)
 OLD_HP_ROI = "0.05,0.05,0.25,0.03"
 OLD_MP_ROI = "0.05,0.09,0.25,0.03"
 OLD_PET_HP_ROI = "0.70,0.05,0.20,0.03"
 OLD_HP_ROI_2 = "0.105,0.030,0.165,0.022"
 OLD_MP_ROI_2 = "0.105,0.052,0.165,0.022"
 OLD_PET_HP_ROI_2 = "0.105,0.074,0.165,0.022"
-DEFAULT_HP_ROI = "0.105,0.030,0.165,0.022"
-DEFAULT_MP_ROI = "0.105,0.052,0.165,0.022"
+DEFAULT_HP_ROI = "118,36,184,12"
+DEFAULT_MP_ROI = "118,55,184,12"
 DEFAULT_PET_HP_ROI = ""
 
 
@@ -26,7 +27,7 @@ class App:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("PW AI Бот")
-        self.root.geometry("980x860")
+        self.root.geometry("920x820")
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.root.bind_all("<F12>", self.on_f12)
 
@@ -36,6 +37,15 @@ class App:
         self.window_name = None
         self.window_error_shown = False
         self.preview_image = None
+        self.preview_render_box = None
+        self.preview_source_size = None
+        self.popout_window = None
+        self.popout_canvas = None
+        self.popout_preview_image = None
+        self.popout_preview_render_box = None
+        self.selection_target = None
+        self.selection_start = None
+        self.selection_current = None
 
         self.load_config()
         self.create_tabs()
@@ -141,8 +151,15 @@ class App:
         preview_frame.columnconfigure(0, weight=1)
         preview_frame.rowconfigure(0, weight=1)
 
-        self.preview_label = tk.Label(preview_frame, text="Ще немає кадру", bg=self.root.cget("bg"), fg="black")
-        self.preview_label.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        preview_toolbar = tk.Frame(preview_frame)
+        preview_toolbar.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 0))
+        tk.Button(preview_toolbar, text="Відкрити велике прев'ю", command=self.open_preview_popout, width=22).pack(side="left")
+
+        self.preview_canvas = tk.Canvas(preview_frame, bg=self.root.cget("bg"), highlightthickness=0)
+        self.preview_canvas.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
+        self.preview_canvas.bind("<ButtonPress-1>", self.on_preview_press)
+        self.preview_canvas.bind("<B1-Motion>", self.on_preview_drag)
+        self.preview_canvas.bind("<ButtonRelease-1>", self.on_preview_release)
 
     def create_settings_tab(self):
         canvas = tk.Canvas(self.settings_tab)
@@ -292,6 +309,15 @@ class App:
         self.hp_roi_var = self._roi_entry(frame, "ROI HP персонажа:", self._resolve_default_roi(cv_config.get("hp_roi"), {OLD_HP_ROI, OLD_HP_ROI_2}, DEFAULT_HP_ROI))
         self.mp_roi_var = self._roi_entry(frame, "ROI MP персонажа:", self._resolve_default_roi(cv_config.get("mp_roi"), {OLD_MP_ROI, OLD_MP_ROI_2}, DEFAULT_MP_ROI))
         self.pet_hp_roi_var = self._roi_entry(frame, "ROI HP петомця:", self._resolve_default_roi(cv_config.get("pet_hp_roi"), {OLD_PET_HP_ROI, OLD_PET_HP_ROI_2}, DEFAULT_PET_HP_ROI))
+
+        picker_frame = tk.Frame(frame)
+        picker_frame.pack(fill="x", pady=(8, 4))
+        tk.Button(picker_frame, text="Виділити HP на прев'ю", command=lambda: self.start_roi_selection("hp")).pack(side="left", padx=(0, 8))
+        tk.Button(picker_frame, text="Виділити MP на прев'ю", command=lambda: self.start_roi_selection("mp")).pack(side="left", padx=(0, 8))
+        tk.Button(picker_frame, text="Виділити HP петомця", command=lambda: self.start_roi_selection("pet")).pack(side="left")
+
+        self.selection_status_label = tk.Label(frame, text="Ручне виділення вимкнене.", fg="gray40", justify="left")
+        self.selection_status_label.pack(anchor="w", pady=(0, 4))
 
         tk.Label(
             frame,
@@ -523,9 +549,15 @@ class App:
         hp = self.bot.last_resource_state.get("hp_percent")
         mp = self.bot.last_resource_state.get("mp_percent")
         pet_hp = self.bot.last_resource_state.get("pet_hp_percent")
-        self.health_label.config(text=f"HP персонажа: {self._format_percent(hp)}")
-        self.mana_label.config(text=f"MP персонажа: {self._format_percent(mp)}")
-        self.pet_health_label.config(text=f"HP петомця: {self._format_percent(pet_hp)}")
+        hp_text = self.bot.last_resource_state.get("hp_text")
+        mp_text = self.bot.last_resource_state.get("mp_text")
+        pet_hp_text = self.bot.last_resource_state.get("pet_hp_text")
+        hp_ok = self.bot.last_resource_state.get("hp_ok")
+        mp_ok = self.bot.last_resource_state.get("mp_ok")
+        pet_hp_ok = self.bot.last_resource_state.get("pet_hp_ok")
+        self.health_label.config(text=f"HP персонажа: {self._format_percent(hp)}{self._format_raw(hp_text)}{self._format_ocr_state(hp_ok, hp_text)}")
+        self.mana_label.config(text=f"MP персонажа: {self._format_percent(mp)}{self._format_raw(mp_text)}{self._format_ocr_state(mp_ok, mp_text)}")
+        self.pet_health_label.config(text=f"HP петомця: {self._format_percent(pet_hp)}{self._format_raw(pet_hp_text)}{self._format_ocr_state(pet_hp_ok, pet_hp_text)}")
 
         modes = self.collect_mode_settings()
         enabled_modes = [
@@ -550,22 +582,9 @@ class App:
             return
 
         image = Image.fromarray(frame[:, :, ::-1])
-        draw = ImageDraw.Draw(image)
+        self._decorate_preview_image(image, preview_state)
 
-        for item in preview_state["boxes"]:
-            x1, y1, x2, y2 = item["xyxy"]
-            label = f"{item['label']} {item['confidence']:.2f}"
-            color = self._pick_box_color(item["label"])
-            draw.rectangle((x1, y1, x2, y2), outline=color, width=3)
-            draw.text((x1 + 4, max(0, y1 - 14)), label, fill=color)
-
-        cv_settings = preview_state["cv_settings"]
-        if cv_settings.get("enabled"):
-            self.draw_roi_overlay(draw, image.size, cv_settings.get("hp_roi"), "red", "HP")
-            self.draw_roi_overlay(draw, image.size, cv_settings.get("mp_roi"), "cyan", "MP")
-            self.draw_roi_overlay(draw, image.size, cv_settings.get("pet_hp_roi"), "orange", "PET")
-
-        preview_frame = self.preview_label.master
+        preview_frame = self.preview_canvas.master.master
         available_width = max(320, preview_frame.winfo_width() - 20)
         max_width = min(available_width, PREVIEW_MAX_SIZE[0])
         aspect_ratio = image.height / max(1, image.width)
@@ -582,8 +601,70 @@ class App:
             method=Image.Resampling.LANCZOS,
         )
 
+        canvas_width = max(available_width, fitted.width)
+        canvas_height = max(PREVIEW_MAX_SIZE[1], fitted.height)
+        offset_x = max(0, (canvas_width - fitted.width) // 2)
+        offset_y = max(0, (canvas_height - fitted.height) // 2)
+
         self.preview_image = ImageTk.PhotoImage(fitted)
-        self.preview_label.config(image=self.preview_image, text="")
+        self.preview_canvas.config(width=canvas_width, height=canvas_height)
+        self.preview_canvas.delete("all")
+        self.preview_canvas.create_image(offset_x, offset_y, image=self.preview_image, anchor="nw")
+        self.preview_render_box = (offset_x, offset_y, fitted.width, fitted.height)
+        self.preview_source_size = image.size
+
+        self.refresh_preview_popout(image)
+
+    def refresh_preview_popout(self, image):
+        if self.popout_window is None or not self.popout_window.winfo_exists() or self.popout_canvas is None:
+            return
+
+        available_width = max(640, self.popout_window.winfo_width() - 40)
+        available_height = max(360, self.popout_window.winfo_height() - 80)
+        target_width = min(available_width, POP_OUT_PREVIEW_MAX_SIZE[0])
+        target_height = min(available_height, POP_OUT_PREVIEW_MAX_SIZE[1])
+
+        fitted = ImageOps.contain(
+            image,
+            (target_width, target_height),
+            method=Image.Resampling.LANCZOS,
+        )
+
+        canvas_width = max(target_width, fitted.width)
+        canvas_height = max(target_height, fitted.height)
+        offset_x = max(0, (canvas_width - fitted.width) // 2)
+        offset_y = max(0, (canvas_height - fitted.height) // 2)
+
+        self.popout_preview_image = ImageTk.PhotoImage(fitted)
+        self.popout_canvas.config(width=canvas_width, height=canvas_height)
+        self.popout_canvas.delete("all")
+        self.popout_canvas.create_image(offset_x, offset_y, image=self.popout_preview_image, anchor="nw")
+        self.popout_preview_render_box = (offset_x, offset_y, fitted.width, fitted.height)
+
+    def _decorate_preview_image(self, image, preview_state):
+        draw = ImageDraw.Draw(image)
+
+        for item in preview_state["boxes"]:
+            x1, y1, x2, y2 = item["xyxy"]
+            label = f"{item['label']} {item['confidence']:.2f}"
+            color = self._pick_box_color(item["label"])
+            draw.rectangle((x1, y1, x2, y2), outline=color, width=3)
+            draw.text((x1 + 4, max(0, y1 - 14)), label, fill=color)
+
+        hud_box = preview_state.get("hud_box")
+        if hud_box:
+            draw.rectangle(hud_box, outline="yellow", width=2)
+            draw.text((hud_box[0] + 4, max(0, hud_box[1] - 14)), "HUD", fill="yellow")
+
+        text_rois = preview_state.get("text_rois", {})
+        self.draw_box_overlay(draw, text_rois.get("hp"), "red", "OCR HP")
+        self.draw_box_overlay(draw, text_rois.get("mp"), "cyan", "OCR MP")
+        self.draw_box_overlay(draw, text_rois.get("pet"), "orange", "OCR PET")
+
+        if self.selection_start and self.selection_current:
+            x1, y1, x2, y2 = self._normalized_box(self.selection_start, self.selection_current)
+            draw.rectangle((x1, y1, x2, y2), outline="deepskyblue", width=3)
+            draw.text((x1 + 4, max(0, y1 - 14)), "SELECT", fill="deepskyblue")
 
     def draw_roi_overlay(self, draw, image_size, roi_text, color, label):
         roi = self.parse_roi(roi_text)
@@ -608,6 +689,200 @@ class App:
         draw.rectangle((x1, y1, x2, y2), outline=color, width=2)
         draw.text((x1 + 4, y1 + 4), label, fill=color)
 
+    @staticmethod
+    def draw_box_overlay(draw, roi, color, label):
+        if roi is None:
+            return
+
+        x1, y1, x2, y2 = [int(value) for value in roi]
+        if x2 <= x1 or y2 <= y1:
+            return
+
+        draw.rectangle((x1, y1, x2, y2), outline=color, width=2)
+        draw.text((x1 + 4, max(0, y1 - 14)), label, fill=color)
+
+    def start_roi_selection(self, target):
+        preview_state = self.bot.get_preview_state()
+        if preview_state["frame"] is None:
+            messagebox.showwarning("Немає кадру", "Дочекайся живого кадру в прев'ю, а потім запускай ручне виділення.")
+            return
+
+        self.selection_target = target
+        self.selection_start = None
+        self.selection_current = None
+        target_label = {"hp": "HP персонажа", "mp": "MP персонажа", "pet": "HP петомця"}.get(target, target)
+        self.selection_status_label.config(
+            text=f"Режим виділення: {target_label}. Можна тягнути рамку на звичайному або великому прев'ю.",
+            fg="deepskyblue4",
+        )
+        self.refresh_preview()
+
+    def on_preview_press(self, event):
+        if not self.selection_target:
+            return
+
+        point = self._preview_to_frame_point(event.x, event.y)
+        if point is None:
+            return
+
+        self.selection_start = point
+        self.selection_current = point
+        self.refresh_preview()
+
+    def on_preview_drag(self, event):
+        if not self.selection_target or self.selection_start is None:
+            return
+
+        point = self._preview_to_frame_point(event.x, event.y)
+        if point is None:
+            return
+
+        self.selection_current = point
+        self.refresh_preview()
+
+    def on_preview_release(self, event):
+        if not self.selection_target or self.selection_start is None:
+            return
+
+        point = self._preview_to_frame_point(event.x, event.y)
+        self._finish_roi_selection(point)
+
+    def _finish_roi_selection(self, point):
+        if point is None:
+            self._clear_selection_state()
+            self.refresh_preview()
+            return
+
+        self.selection_current = point
+        x1, y1, x2, y2 = self._normalized_box(self.selection_start, self.selection_current)
+        if x2 - x1 < 4 or y2 - y1 < 4:
+            self.selection_status_label.config(text="Виділення замале. Спробуй ще раз.", fg="firebrick")
+            self._clear_selection_state()
+            self.refresh_preview()
+            return
+
+        roi_text = f"{x1},{y1},{x2 - x1},{y2 - y1}"
+        if self.selection_target == "hp":
+            self.hp_roi_var.set(roi_text)
+        elif self.selection_target == "mp":
+            self.mp_roi_var.set(roi_text)
+        else:
+            self.pet_hp_roi_var.set(roi_text)
+
+        self.cv_enabled_var.set(True)
+        self.selection_status_label.config(text=f"ROI збережено: {roi_text}", fg="darkgreen")
+        self._clear_selection_state()
+        self.apply_bot_configuration()
+        self.refresh_preview()
+
+    def _clear_selection_state(self):
+        self.selection_target = None
+        self.selection_start = None
+        self.selection_current = None
+
+    @staticmethod
+    def _normalized_box(start, end):
+        return (
+            min(start[0], end[0]),
+            min(start[1], end[1]),
+            max(start[0], end[0]),
+            max(start[1], end[1]),
+        )
+
+    def _preview_to_frame_point(self, canvas_x, canvas_y):
+        return self._render_to_frame_point(canvas_x, canvas_y, self.preview_render_box)
+
+    def _render_to_frame_point(self, canvas_x, canvas_y, render_box):
+        if not render_box or not self.preview_source_size:
+            return None
+
+        offset_x, offset_y, render_w, render_h = render_box
+        source_w, source_h = self.preview_source_size
+        local_x = canvas_x - offset_x
+        local_y = canvas_y - offset_y
+
+        if local_x < 0 or local_y < 0 or local_x > render_w or local_y > render_h:
+            return None
+
+        frame_x = int((local_x / max(1, render_w)) * source_w)
+        frame_y = int((local_y / max(1, render_h)) * source_h)
+        return (
+            max(0, min(source_w - 1, frame_x)),
+            max(0, min(source_h - 1, frame_y)),
+        )
+
+    def open_preview_popout(self):
+        if self.popout_window is not None and self.popout_window.winfo_exists():
+            self.popout_window.deiconify()
+            self.popout_window.lift()
+            self.refresh_preview()
+            return
+
+        self.popout_window = tk.Toplevel(self.root)
+        self.popout_window.title("Велике прев'ю")
+        self.popout_window.geometry("1400x900")
+        self.popout_window.configure(bg=self.root.cget("bg"))
+        self.popout_window.protocol("WM_DELETE_WINDOW", self.close_preview_popout)
+
+        info_label = tk.Label(
+            self.popout_window,
+            text="Тут можна точніше виділяти ROI мишкою. Координати збережуться так само, як і зі звичайного прев'ю.",
+            justify="left",
+            bg=self.root.cget("bg"),
+        )
+        info_label.pack(anchor="w", padx=12, pady=(12, 6))
+
+        self.popout_canvas = tk.Canvas(self.popout_window, bg=self.root.cget("bg"), highlightthickness=0)
+        self.popout_canvas.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        self.popout_canvas.bind("<ButtonPress-1>", self.on_popout_preview_press)
+        self.popout_canvas.bind("<B1-Motion>", self.on_popout_preview_drag)
+        self.popout_canvas.bind("<ButtonRelease-1>", self.on_popout_preview_release)
+        self.popout_window.bind("<Configure>", self.on_popout_window_resize)
+        self.refresh_preview()
+
+    def close_preview_popout(self):
+        if self.popout_window is not None and self.popout_window.winfo_exists():
+            self.popout_window.destroy()
+        self.popout_window = None
+        self.popout_canvas = None
+        self.popout_preview_image = None
+        self.popout_preview_render_box = None
+
+    def on_popout_window_resize(self, event=None):
+        if event is not None and event.widget is not self.popout_window:
+            return
+        self.refresh_preview()
+
+    def on_popout_preview_press(self, event):
+        if not self.selection_target:
+            return
+
+        point = self._render_to_frame_point(event.x, event.y, self.popout_preview_render_box)
+        if point is None:
+            return
+
+        self.selection_start = point
+        self.selection_current = point
+        self.refresh_preview()
+
+    def on_popout_preview_drag(self, event):
+        if not self.selection_target or self.selection_start is None:
+            return
+
+        point = self._render_to_frame_point(event.x, event.y, self.popout_preview_render_box)
+        if point is None:
+            return
+
+        self.selection_current = point
+        self.refresh_preview()
+
+    def on_popout_preview_release(self, event):
+        if self.popout_canvas is None or not self.selection_target or self.selection_start is None:
+            return
+
+        point = self._render_to_frame_point(event.x, event.y, self.popout_preview_render_box)
+        self._finish_roi_selection(point)
+
     def save_current_frame(self):
         preview_state = self.bot.get_preview_state()
         frame = preview_state["frame"]
@@ -625,6 +900,18 @@ class App:
     @staticmethod
     def _format_percent(value):
         return "н/д" if value is None else f"{value:.1f}%"
+
+    @staticmethod
+    def _format_raw(value):
+        return "" if not value else f" ({value})"
+
+    @staticmethod
+    def _format_ocr_state(ok, raw_value):
+        if ok:
+            return " [OCR OK]"
+        if raw_value:
+            return " [OCR FAIL]"
+        return ""
 
     def _pick_box_color(self, label):
         label = label.lower()
