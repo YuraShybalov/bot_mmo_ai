@@ -29,19 +29,19 @@
   ],
   "healing": {
     "hp_threshold": 50,
-    "key": "F1"
+    "key": "F2"
   },
   "mana_restoration": {
     "mp_threshold": 30,
-    "key": "F2"
-  },
-  "pet_healing": {
-    "hp_threshold": 40,
     "key": "F3"
   },
-  "auto_farm": false,
+  "pet_healing": {
+    "hp_threshold": 95,
+    "key": "F1"
+  },
+  "auto_farm": true,
   "resource_gather": false,
-  "pet_mode": false,
+  "pet_mode": true,
   "pause_on_bot": true,
   "resource_key": "F4",
   "yolo": {
@@ -56,6 +56,6 @@
     "enabled": true,
     "hp_roi": "55,409,74,27",
     "mp_roi": "167,405,75,35",
-    "pet_hp_roi": ""
+    "pet_hp_roi": "1173,413,72,18"
   }
 }

@@ -1,0 +1,9 @@
+path: datasets/gameplay_objects
+train: images/train
+val: images/val
+
+names:
+  0: enemy
+  1: resource
+  2: player
+  3: pet

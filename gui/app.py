@@ -490,6 +490,7 @@ class App:
             messagebox.showerror("Немає вікна", "Спочатку вкажіть назву ігрового вікна у вкладці «Навчання».")
             return
 
+        self.window_name = window_name
         self.save_all_config()
         self.apply_bot_configuration()
         self.window_error_shown = False

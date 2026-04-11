@@ -11,6 +11,12 @@ from bot.frame_analyzer import FrameAnalyzer
 from bot.yolo_detector import YOLODetector
 
 
+HEAL_COOLDOWN_SECONDS = 10.0
+MANA_COOLDOWN_SECONDS = 10.0
+PET_HEAL_COOLDOWN_SECONDS = 3.0
+WINDOW_FOCUS_DELAY_SECONDS = 0.08
+
+
 class BotLoop:
     def __init__(self):
         self.monitoring = False
@@ -87,15 +93,15 @@ class BotLoop:
     def set_support_settings(self, healing_settings, mana_settings, pet_heal_settings, cv_settings):
         self.heal_settings = {
             "hp_threshold": int(healing_settings.get("hp_threshold", 50)),
-            "key": healing_settings.get("key", "F1"),
+            "key": self._normalize_key_name(healing_settings.get("key", "F1")),
         }
         self.mana_settings = {
             "mp_threshold": int(mana_settings.get("mp_threshold", 30)),
-            "key": mana_settings.get("key", "F2"),
+            "key": self._normalize_key_name(mana_settings.get("key", "F2")),
         }
         self.pet_heal_settings = {
             "hp_threshold": int(pet_heal_settings.get("hp_threshold", 40)),
-            "key": pet_heal_settings.get("key", "F3"),
+            "key": self._normalize_key_name(pet_heal_settings.get("key", "F3")),
         }
         self.cv_settings = {
             "enabled": bool(cv_settings.get("enabled", False)),
@@ -116,7 +122,7 @@ class BotLoop:
             "pet_mode": bool(mode_settings.get("pet_mode", False)),
             "pause_on_bot": bool(mode_settings.get("pause_on_bot", True)),
         }
-        self.resource_action_key = mode_settings.get("resource_key", "F4") or "F4"
+        self.resource_action_key = self._normalize_key_name(mode_settings.get("resource_key", "F4") or "F4")
 
     def start_monitoring(self):
         if self.monitoring:
@@ -230,17 +236,21 @@ class BotLoop:
             if hwnd_dc is not None and self.hwnd:
                 win32gui.ReleaseDC(self.hwnd, hwnd_dc)
 
+    def focus_game_window(self):
+        if not self.hwnd:
+            return
+
+        try:
+            win32gui.ShowWindow(self.hwnd, win32con.SW_RESTORE)
+            win32gui.SetForegroundWindow(self.hwnd)
+            win32gui.SetFocus(self.hwnd)
+        except Exception:
+            pass
+        time.sleep(WINDOW_FOCUS_DELAY_SECONDS)
+
     def press_button(self, button_number):
         try:
-            if self.hwnd:
-                try:
-                    win32gui.ShowWindow(self.hwnd, win32con.SW_RESTORE)
-                    win32gui.SetForegroundWindow(self.hwnd)
-                    win32gui.SetFocus(self.hwnd)
-                except Exception:
-                    pass
-                time.sleep(0.08)
-
+            self.focus_game_window()
             pyautogui.press(str(button_number))
             print(f"Pressed key {button_number}")
         except Exception as exc:
@@ -249,7 +259,9 @@ class BotLoop:
 
     def press_key(self, key_name):
         try:
-            pyautogui.press(key_name)
+            self.focus_game_window()
+            normalized_key = self._normalize_key_name(key_name)
+            pyautogui.press(normalized_key)
             print(f"Pressed support key {key_name}")
         except Exception as exc:
             self.last_error = str(exc)
@@ -390,19 +402,19 @@ class BotLoop:
         now = time.time()
 
         if resource_state.hp_percent is not None and resource_state.hp_percent <= self.heal_settings["hp_threshold"]:
-            if now - self.last_support_action["heal"] >= 1.0:
+            if now - self.last_support_action["heal"] >= HEAL_COOLDOWN_SECONDS:
                 self.press_key(self.heal_settings["key"])
                 self.last_support_action["heal"] = now
 
         if resource_state.mp_percent is not None and resource_state.mp_percent <= self.mana_settings["mp_threshold"]:
-            if now - self.last_support_action["mana"] >= 1.0:
+            if now - self.last_support_action["mana"] >= MANA_COOLDOWN_SECONDS:
                 self.press_key(self.mana_settings["key"])
                 self.last_support_action["mana"] = now
 
         if self.mode_settings["pet_mode"]:
             pet_hp = resource_state.pet_hp_percent
             if pet_hp is not None and pet_hp <= self.pet_heal_settings["hp_threshold"]:
-                if now - self.last_support_action["pet_heal"] >= 1.0:
+                if now - self.last_support_action["pet_heal"] >= PET_HEAL_COOLDOWN_SECONDS:
                     self.press_key(self.pet_heal_settings["key"])
                     self.last_support_action["pet_heal"] = now
 
@@ -430,3 +442,9 @@ class BotLoop:
         if not isinstance(text, str):
             return set()
         return {item.strip().lower() for item in text.split(",") if item.strip()}
+
+    @staticmethod
+    def _normalize_key_name(key_name):
+        if not isinstance(key_name, str):
+            return key_name
+        return key_name.strip().lower()

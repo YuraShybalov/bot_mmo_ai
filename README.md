@@ -55,6 +55,17 @@ Configure in `Settings`:
 - Label those screenshots into classes like `enemy`, `resource`, `player`, `pet`.
 - Train a custom YOLO model and point `Model path` to the exported `.pt`.
 
+## Gameplay Object Training
+
+- The gameplay dataset lives in `datasets/gameplay_objects/`.
+- Classes are `enemy`, `resource`, `player` and `pet`.
+- Because the controlled character is always in the screen center, do not label your own character.
+- Label only objects around the character: mobs, resources, other players/bots and pets when they matter.
+- Include screenshots from different camera angles, distances, UI states, combat effects, lighting and crowded scenes.
+- Start training with `python scripts/train_gameplay_yolo.py`.
+- After training, set the GUI model path to `runs/gameplay_objects/weights/best.pt`.
+- In the GUI YOLO settings use `enemy` for enemy classes, `resource` for resource classes and `player` for bot/player classes.
+
 ## HUD Bar Training
 
 - Added a starter dataset in [datasets/hud_bars/dataset.yaml](/d:/Projekt/bot_mmo_ai/datasets/hud_bars/dataset.yaml) for `hp_bar` and `mp_bar`.
