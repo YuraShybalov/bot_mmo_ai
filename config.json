@@ -3,8 +3,8 @@
   "attack_buttons": [
     {
       "number": 1,
-      "enabled": false,
-      "timer": "1.0"
+      "enabled": true,
+      "timer": "3.0"
     },
     {
       "number": 2,
@@ -23,8 +23,8 @@
     },
     {
       "number": 5,
-      "enabled": false,
-      "timer": "1.0"
+      "enabled": true,
+      "timer": "5.0"
     }
   ],
   "healing": {
@@ -36,13 +36,13 @@
     "key": "F3"
   },
   "pet_healing": {
-    "hp_threshold": 95,
+    "hp_threshold": 47,
     "key": "F1"
   },
   "auto_farm": true,
   "resource_gather": false,
   "pet_mode": true,
-  "pause_on_bot": true,
+  "pause_on_bot": false,
   "resource_key": "F4",
   "yolo": {
     "enabled": true,
